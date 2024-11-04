@@ -125,17 +125,16 @@ function installKicad
 
 function installDependency
 {
-
-    set +e      # Temporary disable exit on error
+    set +e      # Temporarily disable exit on error
     trap "" ERR # Do not trap on error of any command
 
-	# Update apt repository
-	echo "Updating apt index files..................."
+    # Update apt repository
+    echo "Updating apt index files..................."
     sudo apt-get update
     
     set -e      # Re-enable exit on error
     trap error_exit ERR
-    
+
     echo "Installing Xterm..........................."
     sudo apt-get install -y xterm
     
@@ -151,24 +150,56 @@ function installDependency
     echo "Installing Distutils......................."
     sudo apt-get install -y python3-distutils
 
-    # Install NgVeri Depedencies
-    echo "Installing Pip3............................"
-    sudo apt install -y python3-pip
+    # Install Python 3.11 if it's not already installed
+    if ! command -v python3.11 &> /dev/null
+    then
+        echo "Python 3.11 not found. Installing Python 3.11..."
+        sudo apt install -y python3.11 python3.11-venv
+    else
+        echo "Python 3.11 is already installed."
+    fi
+
+    # Create a virtual environment using Python 3.11 for hdlparse and other packages
+    echo "Setting up a Python 3.11 virtual environment for Python packages..."
+    python3.11 -m venv esim_env
+    source esim_env/bin/activate
+
+    echo "Installing Pip in the virtual environment..."
+    python3.11 -m ensurepip --upgrade
 
     echo "Installing Watchdog........................"
-    pip3 install watchdog
+    pip install watchdog
 
-    echo "Installing Hdlparse........................"
-    pip3 install --upgrade https://github.com/hdl/pyhdlparser/tarball/master
+    echo "Downloading and installing modified Hdlparse..."
+    # Download hdlparse source
+    wget https://github.com/kevinpt/hdlparse/tarball/master -O hdlparse-master.tar.gz
+    tar -xf hdlparse-master.tar.gz
+    cd kevinpt-hdlparse-*
+
+    # Check if setup.py exists and remove the 'use_2to3' line
+    if [ -f "setup.py" ]; then
+        sed -i "/use_2to3/d" setup.py
+    else
+        echo "Error: setup.py not found in hdlparse source code."
+        exit 1
+    fi
+
+    # Install hdlparse from the modified source
+    pip install .
+
+    # Clean up
+    cd ..
+    rm -rf kevinpt-hdlparse-* hdlparse-master.tar.gz
 
     echo "Installing Makerchip......................."
-    pip3 install makerchip-app
+    pip install makerchip-app
 
     echo "Installing SandPiper Saas.................."
-    pip3 install sandpiper-saas
+    pip install sandpiper-saas
 
+    # Deactivate the virtual environment
+    deactivate
 }
-
 
 function copyKicadLibrary
 {
